@@ -86,6 +86,12 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
 const VIEW_HEIGHT_BASE = 540;
 const VIEW_WIDTH_MIN = 660;
 
+// Kleine Bildschirme (Handy quer): so viele Welt-Einheiten sind dann hoch
+// sichtbar. Kleiner = näher herangezoomt, größer = mehr Überblick.
+const SMALL_SCREEN_VIEW_HEIGHT = 360;
+// Bis zu dieser Bildschirmhöhe (in Pixeln) gilt ein Bildschirm als klein.
+const SMALL_SCREEN_MAX_HEIGHT = 600;
+
 let viewScale = 1;
 let viewWidth = 960;
 let viewHeight = VIEW_HEIGHT_BASE;
@@ -107,7 +113,8 @@ function resizeCanvas() {
     canvas.width = Math.max(1, Math.floor(w * dpr));
     canvas.height = Math.max(1, Math.floor(h * dpr));
 
-    viewScale = Math.min(canvas.height / VIEW_HEIGHT_BASE, canvas.width / VIEW_WIDTH_MIN);
+    const targetViewHeight = h < SMALL_SCREEN_MAX_HEIGHT ? SMALL_SCREEN_VIEW_HEIGHT : VIEW_HEIGHT_BASE;
+    viewScale = Math.min(canvas.height / targetViewHeight, canvas.width / VIEW_WIDTH_MIN);
     viewWidth = canvas.width / viewScale;
     viewHeight = canvas.height / viewScale;
 }
@@ -426,26 +433,53 @@ window.addEventListener('blur', () => {
     input.left = input.right = input.down = false;
     input.jumpHeld = false;
     joystick = null;
-    rightGesture = null;
-    duckHeld = false;
+    activeTouches.clear();
 });
 
 // --- Touch-Steuerung für kleine Bildschirme -------------------------
 // Linke Bildschirmhälfte: schwebender Joystick - Finger draufhalten und
-// nach links/rechts ziehen, kein Wechseln zwischen einzelnen Knöpfen.
-// Rechte Bildschirmhälfte: Wischgesten - hoch = springen, runter = dauerhaft
-// ducken, hoch (während man duckt) = aufstehen und gleich mitspringen.
+// nach links/rechts ziehen. Unten rechts: Knöpfe zum Springen und Ducken.
 
 let touchActive = false;
-const activeTouches = new Map(); // nur fürs Zeichnen: pointerId -> 'move' | 'gesture'
+const activeTouches = new Map(); // pointerId -> 'move' | 'jump' | 'duck'
 
-const JOY_RADIUS = 52;      // wie weit der Steuerknüppel maximal auswandert
-const JOY_DEADZONE = 14;    // so weit muss man ihn erst auslenken
-const SWIPE_THRESHOLD = 34; // ab dieser Höhe gilt eine Wischbewegung als erkannt
+const JOY_RADIUS = 52;          // wie weit der Steuerknüppel maximal auswandert
+const JOY_DEADZONE = 14;        // so weit muss man ihn erst auslenken
+const JUMP_BUTTON_RADIUS = 48;  // Größe des Spring-Knopfs
+const DUCK_BUTTON_RADIUS = 40;  // Größe des Duck-Knopfs
 
 let joystick = null;   // { pointerId, anchorX, anchorY, curX, curY }
-let rightGesture = null; // { pointerId, startY, triggered, holdingJump }
-let duckHeld = false;  // bleibt an, bis die nächste Hoch-Wischgeste kommt
+const touchButtons = [];
+
+function layoutTouchButtons() {
+    touchButtons.length = 0;
+    const jumpX = viewWidth - 28 - JUMP_BUTTON_RADIUS;
+    const jumpY = viewHeight - 30 - JUMP_BUTTON_RADIUS;
+    touchButtons.push({ id: 'jump', x: jumpX, y: jumpY, r: JUMP_BUTTON_RADIUS });
+    touchButtons.push({
+        id: 'duck',
+        x: jumpX - JUMP_BUTTON_RADIUS - 22 - DUCK_BUTTON_RADIUS,
+        y: viewHeight - 24 - DUCK_BUTTON_RADIUS,
+        r: DUCK_BUTTON_RADIUS,
+    });
+}
+
+function buttonAt(point) {
+    for (const b of touchButtons) {
+        const dx = point.x - b.x;
+        const dy = point.y - b.y;
+        if (dx * dx + dy * dy <= (b.r * 1.15) * (b.r * 1.15)) return b;
+    }
+    return null;
+}
+
+function applyTouchButtons() {
+    const pressed = new Set(activeTouches.values());
+    input.down = pressed.has('duck');
+    const jumpNow = pressed.has('jump');
+    if (jumpNow && !input.jumpHeld) input.jumpPressed = true;
+    input.jumpHeld = jumpNow;
+}
 
 function touchPointToView(e) {
     const rect = canvas.getBoundingClientRect();
@@ -463,64 +497,45 @@ function updateJoystickInput() {
     input.right = dx > JOY_DEADZONE;
 }
 
-function triggerTouchJump() {
-    if (!input.jumpHeld) input.jumpPressed = true;
-    input.jumpHeld = true;
-}
-
 canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && state.mode === 'playing') return;
     touchActive = touchActive || e.pointerType !== 'mouse';
     input.confirmPressed = true; // Tippen bestätigt auch Menüs/Tod-Bildschirm
 
     const point = touchPointToView(e);
-    if (point.x < viewWidth / 2) {
-        if (!joystick) {
-            joystick = { pointerId: e.pointerId, anchorX: point.x, anchorY: point.y, curX: point.x, curY: point.y };
-            activeTouches.set(e.pointerId, 'move');
-            updateJoystickInput();
-        }
-    } else if (!rightGesture) {
-        rightGesture = { pointerId: e.pointerId, startY: point.y, triggered: null, holdingJump: false };
-        activeTouches.set(e.pointerId, 'gesture');
+    layoutTouchButtons(); // Positionen müssen schon beim allerersten Tipp stimmen
+    const button = buttonAt(point);
+    if (button) {
+        activeTouches.set(e.pointerId, button.id);
+        applyTouchButtons();
+    } else if (point.x < viewWidth / 2 && !joystick) {
+        joystick = { pointerId: e.pointerId, anchorX: point.x, anchorY: point.y, curX: point.x, curY: point.y };
+        activeTouches.set(e.pointerId, 'move');
+        updateJoystickInput();
     }
     try { canvas.setPointerCapture?.(e.pointerId); } catch (err) { /* ignoriert */ }
     e.preventDefault();
 });
 
 canvas.addEventListener('pointermove', (e) => {
-    const point = touchPointToView(e);
     if (joystick && e.pointerId === joystick.pointerId) {
+        const point = touchPointToView(e);
         joystick.curX = point.x;
         joystick.curY = point.y;
         updateJoystickInput();
-    } else if (rightGesture && e.pointerId === rightGesture.pointerId && !rightGesture.triggered) {
-        const dy = point.y - rightGesture.startY;
-        if (dy <= -SWIPE_THRESHOLD) {
-            rightGesture.triggered = 'up';
-            if (duckHeld) duckHeld = false; // aufstehen ...
-            triggerTouchJump();             // ... und gleich mitspringen
-            rightGesture.holdingJump = true;
-            input.down = duckHeld;
-        } else if (dy >= SWIPE_THRESHOLD) {
-            rightGesture.triggered = 'down';
-            duckHeld = true;
-            input.down = duckHeld;
-        }
     }
     e.preventDefault();
 }, { passive: false });
 
 function endPointer(e) {
-    if (joystick && e.pointerId === joystick.pointerId) {
+    const role = activeTouches.get(e.pointerId);
+    if (!role) return;
+    activeTouches.delete(e.pointerId);
+    if (role === 'move') {
         joystick = null;
-        activeTouches.delete(e.pointerId);
         updateJoystickInput();
-    }
-    if (rightGesture && e.pointerId === rightGesture.pointerId) {
-        if (rightGesture.holdingJump) input.jumpHeld = false;
-        rightGesture = null;
-        activeTouches.delete(e.pointerId);
+    } else {
+        applyTouchButtons();
     }
 }
 canvas.addEventListener('pointerup', endPointer);
@@ -3129,6 +3144,14 @@ function updateCamera(instant) {
     }
     camera.x = lerp(camera.x, clamp(targetX, minX, Math.max(minX, maxX)), CAMERA_SMOOTHING);
     // camera.y = lerp(camera.y, clamp(targetY, minY, Math.max(minY, maxY)), 0.08);
+
+    // Herangezoomt (Handy quer) passt nicht mehr alles senkrecht ins Bild -
+    // dann geht die Kamera mit, aber erst wenn die Figur sich deutlich entfernt.
+    if (viewHeight < VIEW_HEIGHT_BASE - 1) {
+        const ty = clamp(targetY, minY, Math.max(minY, maxY));
+        const desired = clamp(camera.y, ty - 70, ty + 70);
+        camera.y = lerp(camera.y, desired, 0.12);
+    }
 }
 
 
@@ -8700,19 +8723,53 @@ function drawTouchControls() {
         ctx.fill();
     }
 
-    // Rechte Hälfte: dezenter Hinweis auf die Wischgesten, plus Duck-Anzeige
-    const hintX = viewWidth - 62;
-    const hintY = viewHeight - 110;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = 'bold 22px Georgia, serif';
-    ctx.fillStyle = (rightGesture && rightGesture.triggered === 'up' && rightGesture.holdingJump)
-        ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)';
-    ctx.fillText('▲', hintX, hintY - 30);
-    ctx.fillStyle = duckHeld ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)';
-    ctx.fillText('▼', hintX, hintY + 30);
-    ctx.textBaseline = 'alphabetic';
-    ctx.textAlign = 'left';
+    // Unten rechts: Spring- und Duck-Knopf
+    layoutTouchButtons();
+    const pressed = new Set(activeTouches.values());
+    for (const b of touchButtons) {
+        const on = pressed.has(b.id);
+        ctx.fillStyle = on ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.28)';
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.fillStyle = on ? 'rgba(55,40,55,0.95)' : 'rgba(55,40,55,0.75)';
+        if (b.id === 'jump') drawJumpIcon(b.x, b.y, b.r);
+        else drawDuckIcon(b.x, b.y, b.r);
+    }
+}
+
+// Pfeil nach oben
+function drawJumpIcon(x, y, r) {
+    const s = r / 44;
+    ctx.beginPath();
+    ctx.moveTo(x, y - 20 * s);
+    ctx.lineTo(x + 17 * s, y - 2 * s);
+    ctx.lineTo(x + 7 * s, y - 2 * s);
+    ctx.lineTo(x + 7 * s, y + 18 * s);
+    ctx.lineTo(x - 7 * s, y + 18 * s);
+    ctx.lineTo(x - 7 * s, y - 2 * s);
+    ctx.lineTo(x - 17 * s, y - 2 * s);
+    ctx.closePath();
+    ctx.fill();
+}
+
+// Pfeil nach unten auf eine Linie
+function drawDuckIcon(x, y, r) {
+    const s = r / 44;
+    ctx.beginPath();
+    ctx.moveTo(x - 7 * s, y - 20 * s);
+    ctx.lineTo(x + 7 * s, y - 20 * s);
+    ctx.lineTo(x + 7 * s, y - 3 * s);
+    ctx.lineTo(x + 17 * s, y - 3 * s);
+    ctx.lineTo(x, y + 12 * s);
+    ctx.lineTo(x - 17 * s, y - 3 * s);
+    ctx.lineTo(x - 7 * s, y - 3 * s);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillRect(x - 18 * s, y + 16 * s, 36 * s, 4 * s);
 }
 
 function panel(x, y, w, h) {

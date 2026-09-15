@@ -95,8 +95,10 @@ let viewHeight = VIEW_HEIGHT_BASE;
 // veraltete Werte liefern kann. Die Canvas-Größe selbst regelt CSS
 // (position: fixed; inset: 0), hier geht es nur um die Zeichenauflösung.
 function currentViewportSize() {
-    const vv = window.visualViewport;
-    return vv ? { w: vv.width, h: vv.height } : { w: window.innerWidth, h: window.innerHeight };
+    return {
+        w: canvas.clientWidth || window.innerWidth,
+        h: canvas.clientHeight || window.innerHeight,
+    };
 }
 
 function resizeCanvas() {
@@ -110,10 +112,17 @@ function resizeCanvas() {
     viewHeight = canvas.height / viewScale;
 }
 resizeCanvas();
-window.addEventListener('resize', resizeCanvas);
-window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 60));
+
+// Ändert sich die Bildschirmgröße (Handy drehen, Adressleiste verschwindet),
+// muss auch die Kamera neu ausgerichtet werden - sie folgt senkrecht nicht mit.
+function handleResize() {
+    resizeCanvas();
+    updateCamera(true);
+}
+window.addEventListener('resize', handleResize);
+window.addEventListener('orientationchange', () => setTimeout(handleResize, 60));
 if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', resizeCanvas);
+    window.visualViewport.addEventListener('resize', handleResize);
 }
 
 function toggleFullscreen() {

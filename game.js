@@ -1,37 +1,11 @@
-/* ==================================================================
-   Antonias Abenteuer mit Mowgli
-   Ein selbstgebautes Canvas-Jump'n'Run - ohne Framework, ohne Assets.
-   ------------------------------------------------------------------
-   Aufbau der Datei:
-     1.  Persönliche Einstellungen  (hier alles Persönliche anpassen)
-     2.  Canvas & Ansicht
-     3.  Einstellungen: Physik & Spielgefühl  (hier alles einstellen)
-     4.  Kleine Helfer
-     5.  Eingabe (Tastatur + Touch)
-     6.  Weltdaten & Spielzustand
-     7.  Level-Bau aus Segmenten
-     8.  Kollision (einheitlich für alle beweglichen Körper)
-     9.  Spieler, Mowgli, Kuh, Käfer
-    10.  Partikel & Kamera
-    11.  Zeichnen
-    12.  Spielablauf & Hauptschleife
-   ================================================================== */
-
-
-/* ---------- 1. Persönliche Einstellungen ---------- */
-
 const PERSONAL = {
     heroName: 'Antonia',
     catName: 'Mogli',
     endingTitle: 'Geschafft!',
     endingLines: [
-        'Danke für jedes Abenteuer mit dir.',
-        'Für jedes Lachen, jede Kuschelrunde mit Mowgli',
-        'und für jeden Tag, an dem du einfach da bist.',
-        'Auf viele weitere Level zusammen!',
+        
     ],
-    endingSignature: 'Alles Liebe zum Jahrestag',
-    // Farben der Spielfigur - einfach anpassbar
+    endingSignature: 'Alles gute zum Jahrestag Mausi!',
     heroColors: {
         hair: '#d9b380',
         dress: '#e2574c',
@@ -39,7 +13,6 @@ const PERSONAL = {
         shoes: '#3c3b4d',
     },
 
-    // Farben des Freundes, der im Restaurant mit am Tisch sitzt
     partnerColors: {
         hair: '#4a3222',
         shirt: '#3f6fb0',
@@ -47,81 +20,56 @@ const PERSONAL = {
         pants: '#34344a',
     },
 
-    // --- Die Kapitel unserer Geschichte -------------------------------
-    // Jedes Biom ist ein Kapitel. `flag` ist der Name auf der Flagge am
-    // Kapitelanfang - ohne `flag` (wie beim Finale) gibt es keine Flagge.
+
     chapters: {
         prag: {
-            flag: 'Prag',       // steht auf der Kapitel-Flagge
+            flag: 'Prag', 
             title: 'Prag',
-            subtitle: 'Bevor wir wussten, wohin das führt',
+            subtitle: '',
             message: [
-                'Damals waren wir nur mit Freunden unterwegs.',
-                'Ich wusste noch nicht, dass diese Stadt',
-                'später zu unserer Geschichte gehören würde.',
             ],
         },
         italien: {
-            flag: "L'Oasi",     // steht auf der Kapitel-Flagge
-            title: 'Unser erstes Date',
-            subtitle: 'Ein kleiner Italiener, ein großer Anfang',
+            flag: "L'Oasi",
+            title: '',
+            subtitle: '',
             message: [
-                'Unser erstes Date.',
-                'Ich weiß noch, wie aufgeregt ich war -',
-                'und wie schnell der Abend vorbei ging.',
             ],
         },
         afrika: {
-            flag: 'Afrikaner',  // steht auf der Kapitel-Flagge
-            title: 'Der afrikanische Abend',
-            subtitle: 'Neues Essen, altes Lachen',
+            flag: 'Afrikanisches Restaurant',
+            title: '',
+            subtitle: '',
             message: [
-                'Neue Gerichte, warmes Licht,',
-                'und wir beide mittendrin.',
-                'Mit dir schmeckt einfach alles besser.',
             ],
         },
         marokko: {
-            flag: 'Marokko',    // steht auf der Kapitel-Flagge
+            flag: 'Marokko',
             title: 'Marokko',
-            subtitle: 'Urlaub mit dir und meinen Eltern',
+            subtitle: '',
             message: [
-                'Fremde Gassen, warme Abende,',
-                'und du mittendrin - als hättest du',
-                'schon immer zu uns gehört.',
             ],
         },
         harz: {
-            flag: 'Harz',       // steht auf der Kapitel-Flagge
-            title: 'Der Harz',
-            subtitle: 'Ein Weg, ein Berg, wir beide',
+            flag: 'Harz', 
+            title: 'Harz',
+            subtitle: '',
             message: [
-                'Ein langer Weg, viele Höhenmeter,',
-                'und oben dann diese Aussicht.',
-                'Mit dir gehe ich jeden Weg.',
+
             ],
         },
         finale: {
             title: 'Und weiter',
-            subtitle: 'Der Weg geht noch lange nicht zu Ende',
-            // Dieser Platzhalter lässt sich einfach ersetzen:
+            subtitle: '',
             message: [
-                'Unsere Geschichte ist noch lange nicht vorbei.',
             ],
         },
     },
 };
 
-
-/* ---------- 2. Canvas & Ansicht ---------- */
-// Das Spiel rechnet immer in festen "Welt-Einheiten" und wird erst beim
-// Zeichnen auf die Fenstergröße skaliert. Dadurch fühlt sich das Spiel auf
-// jedem Bildschirm exakt gleich an (Handy wie großer Monitor).
-
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 
-// Fallback für ältere Browser ohne ctx.roundRect
 if (!CanvasRenderingContext2D.prototype.roundRect) {
     CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
         const radius = Math.min(typeof r === 'number' ? r : 0, w / 2, h / 2);
@@ -135,19 +83,27 @@ if (!CanvasRenderingContext2D.prototype.roundRect) {
     };
 }
 
-const VIEW_HEIGHT_BASE = 540; // so viele Welt-Einheiten sind hoch sichtbar
-const VIEW_WIDTH_MIN = 660;   // Mindestbreite, damit auf Handys genug zu sehen ist
+const VIEW_HEIGHT_BASE = 540;
+const VIEW_WIDTH_MIN = 660;
 
 let viewScale = 1;
 let viewWidth = 960;
 let viewHeight = VIEW_HEIGHT_BASE;
 
+// Die eigentliche Bildschirmgröße - bevorzugt visualViewport, weil sich bei
+// Mobilgeräten die Adressleiste ein-/ausblendet und window.innerHeight dabei
+// veraltete Werte liefern kann. Die Canvas-Größe selbst regelt CSS
+// (position: fixed; inset: 0), hier geht es nur um die Zeichenauflösung.
+function currentViewportSize() {
+    const vv = window.visualViewport;
+    return vv ? { w: vv.width, h: vv.height } : { w: window.innerWidth, h: window.innerHeight };
+}
+
 function resizeCanvas() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.max(1, Math.floor(window.innerWidth * dpr));
-    canvas.height = Math.max(1, Math.floor(window.innerHeight * dpr));
-    canvas.style.width = window.innerWidth + 'px';
-    canvas.style.height = window.innerHeight + 'px';
+    const { w, h } = currentViewportSize();
+    canvas.width = Math.max(1, Math.floor(w * dpr));
+    canvas.height = Math.max(1, Math.floor(h * dpr));
 
     viewScale = Math.min(canvas.height / VIEW_HEIGHT_BASE, canvas.width / VIEW_WIDTH_MIN);
     viewWidth = canvas.width / viewScale;
@@ -155,6 +111,10 @@ function resizeCanvas() {
 }
 resizeCanvas();
 window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 60));
+if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', resizeCanvas);
+}
 
 function toggleFullscreen() {
     if (!document.fullscreenElement) {
@@ -165,33 +125,20 @@ function toggleFullscreen() {
 }
 
 
-/* ==================================================================
-   3. EINSTELLUNGEN: Physik & Spielgefühl
-   ------------------------------------------------------------------
-   Hier lässt sich das komplette Spielgefühl einstellen.
-
-   Einheiten: Positionen in Welt-Einheiten (die Spielfigur ist 44 hoch),
-   Geschwindigkeiten in Einheiten PRO FRAME. Das Spiel läuft mit 60 Frames
-   pro Sekunde - "30 Frames" sind also eine halbe Sekunde.
-
-   Nach jeder Änderung die Seite neu laden. Das Level passt Lücken und
-   Stufen automatisch an Sprunghöhe und -weite an (siehe "Fairness").
-   ================================================================== */
-
-const STEP_MS = 1000 / 60; // Länge eines Frames - nicht ändern, sonst läuft alles schneller/langsamer
 
 
-/* --- Laufen ------------------------------------------------------- */
+const STEP_MS = 1000 / 60;
 
-// Höchsttempo beim Laufen. Höher = schneller, aber auch weitere Sprünge.
+
+// Laufen 
+
+// Höchsttempo beim Laufen
 const MAX_RUN_SPEED = 3.0;
 
 // Wie schnell man am Boden auf Tempo kommt.
-// Höher = spritziger Antritt, niedriger = träger, "schwerer" Charakter.
 const RUN_ACCEL = 0.15;
 
 // Bremsen am Boden, wenn man nichts drückt.
-// Höher = bleibt sofort stehen, niedriger = rutscht nach wie auf Eis.
 const RUN_FRICTION = 0.22;
 
 // Lenken in der Luft.
@@ -206,7 +153,7 @@ const AIR_DRAG = 0.015;
 const DUCK_SPEED_FACTOR = 0.5;
 
 
-/* --- Springen & Fallen -------------------------------------------- */
+// Springen & Fallen 
 
 // Schwerkraft. Bestimmt zusammen mit JUMP_VELOCITY Sprunghöhe UND -dauer:
 //   Sprunghöhe = JUMP_VELOCITY² / (2 · GRAVITY)
@@ -388,30 +335,25 @@ const JUMP_SAFETY_FACTOR = 0.6;   // Lücken höchstens so breit: Anteil der max
 const GAP_HEADROOM = 0.92;        // beim Bauen nochmal etwas schmaler (0.92 = 8 % Luft)
 const STEP_SAFETY_FACTOR = 0.60;  // Stufen höchstens so hoch: Anteil der maximalen Sprunghöhe
 
-// --- Ab hier wird automatisch berechnet - nicht von Hand ändern ---
 
 const MAX_JUMP_HEIGHT = (JUMP_VELOCITY * JUMP_VELOCITY) / (2 * GRAVITY);
 const SAFE_STEP_MAX = MAX_JUMP_HEIGHT * STEP_SAFETY_FACTOR;
 
-// Wie weit reicht ein Sprung, wenn das Ziel `rise` Einheiten HÖHER liegt?
-// Weite und Höhe gehören zusammen: wer hoch springen muss, kommt nicht mehr weit.
 function jumpReach(rise) {
     const v = Math.abs(JUMP_VELOCITY);
     const disc = v * v - 2 * GRAVITY * Math.max(0, rise);
-    if (disc <= 0) return 0; // so hoch kommt man überhaupt nicht
+    if (disc <= 0) return 0; 
     const timeToFallBackToHeight = (v + Math.sqrt(disc)) / GRAVITY;
     return timeToFallBackToHeight * MAX_RUN_SPEED;
 }
 
-// Sichere Lückenbreite mit Reserve - man ist selten auf Höchsttempo
 function safeGapFor(rise) {
     return Math.max(45, jumpReach(rise) * JUMP_SAFETY_FACTOR);
 }
 
-const SAFE_GAP_MAX = safeGapFor(0); // breiteste Lücke auf ebener Strecke
+const SAFE_GAP_MAX = safeGapFor(0);
 
 
-/* ---------- 4. Kleine Helfer ---------- */
 
 function clamp(value, min, max) { return value < min ? min : (value > max ? max : value); }
 function lerp(a, b, t) { return a + (b - a) * t; }
@@ -425,14 +367,13 @@ function overlaps(a, b) {
 }
 
 
-/* ---------- 5. Eingabe ---------- */
 
 const input = {
     left: false,
     right: false,
     down: false,
     jumpHeld: false,
-    jumpPressed: false, // nur eine einzige Flanke pro echtem Tastendruck
+    jumpPressed: false,
     confirmPressed: false,
 };
 
@@ -442,8 +383,7 @@ window.addEventListener('keydown', (e) => {
         case 'ArrowRight': case 'KeyD': input.right = true; break;
         case 'ArrowDown': case 'KeyS': input.down = true; break;
         case 'Space': case 'ArrowUp': case 'KeyW':
-            // Gedrückthalten löst KEINEN zweiten Sprung aus: die Flanke wird
-            // nur gesetzt, wenn die Taste vorher losgelassen war.
+
             if (!input.jumpHeld) {
                 input.jumpPressed = true;
                 input.confirmPressed = true;
@@ -458,7 +398,6 @@ window.addEventListener('keydown', (e) => {
         case 'Digit0': case 'Numpad0': toggleAdmin(); break;
         case 'KeyV': if (admin.active) toggleFlying(); break;
         default: {
-            // Kapitel-Sprung im Admin-Modus: Tasten 1-6
             const m = /^(?:Digit|Numpad)([1-9])$/.exec(e.code);
             if (m && admin.active) jumpToChapter(Number(m[1]) - 1);
         }
@@ -477,22 +416,27 @@ window.addEventListener('keyup', (e) => {
 window.addEventListener('blur', () => {
     input.left = input.right = input.down = false;
     input.jumpHeld = false;
+    joystick = null;
+    rightGesture = null;
+    duckHeld = false;
 });
 
-// --- Touch-Steuerung für kleine Bildschirme ---
-let touchActive = false;
-const touchButtons = [];      // wird bei jedem Zeichnen neu berechnet
-const activeTouches = new Map();
+// --- Touch-Steuerung für kleine Bildschirme -------------------------
+// Linke Bildschirmhälfte: schwebender Joystick - Finger draufhalten und
+// nach links/rechts ziehen, kein Wechseln zwischen einzelnen Knöpfen.
+// Rechte Bildschirmhälfte: Wischgesten - hoch = springen, runter = dauerhaft
+// ducken, hoch (während man duckt) = aufstehen und gleich mitspringen.
 
-function layoutTouchButtons() {
-    touchButtons.length = 0;
-    const r = 46;
-    const bottom = viewHeight - 30 - r;
-    touchButtons.push({ id: 'left', x: 40 + r, y: bottom, r });
-    touchButtons.push({ id: 'right', x: 40 + r * 3.2, y: bottom, r });
-    touchButtons.push({ id: 'down', x: viewWidth - 40 - r * 3.2, y: bottom, r });
-    touchButtons.push({ id: 'jump', x: viewWidth - 40 - r, y: bottom, r });
-}
+let touchActive = false;
+const activeTouches = new Map(); // nur fürs Zeichnen: pointerId -> 'move' | 'gesture'
+
+const JOY_RADIUS = 52;      // wie weit der Steuerknüppel maximal auswandert
+const JOY_DEADZONE = 14;    // so weit muss man ihn erst auslenken
+const SWIPE_THRESHOLD = 34; // ab dieser Höhe gilt eine Wischbewegung als erkannt
+
+let joystick = null;   // { pointerId, anchorX, anchorY, curX, curY }
+let rightGesture = null; // { pointerId, startY, triggered, holdingJump }
+let duckHeld = false;  // bleibt an, bis die nächste Hoch-Wischgeste kommt
 
 function touchPointToView(e) {
     const rect = canvas.getBoundingClientRect();
@@ -503,45 +447,72 @@ function touchPointToView(e) {
     };
 }
 
-function buttonAt(point) {
-    for (const b of touchButtons) {
-        const dx = point.x - b.x;
-        const dy = point.y - b.y;
-        if (dx * dx + dy * dy <= (b.r * 1.25) * (b.r * 1.25)) return b;
-    }
-    return null;
+function updateJoystickInput() {
+    if (!joystick) { input.left = false; input.right = false; return; }
+    const dx = clamp(joystick.curX - joystick.anchorX, -JOY_RADIUS, JOY_RADIUS);
+    input.left = dx < -JOY_DEADZONE;
+    input.right = dx > JOY_DEADZONE;
 }
 
-function applyTouchState() {
-    const pressed = new Set(activeTouches.values());
-    input.left = pressed.has('left');
-    input.right = pressed.has('right');
-    input.down = pressed.has('down');
-    const jumpNow = pressed.has('jump');
-    if (jumpNow && !input.jumpHeld) {
-        input.jumpPressed = true;
-        input.confirmPressed = true;
-    }
-    input.jumpHeld = jumpNow;
+function triggerTouchJump() {
+    if (!input.jumpHeld) input.jumpPressed = true;
+    input.jumpHeld = true;
 }
 
 canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && state.mode === 'playing') return;
     touchActive = touchActive || e.pointerType !== 'mouse';
-    layoutTouchButtons(); // Positionen müssen schon beim allerersten Tipp stimmen
-    const button = buttonAt(touchPointToView(e));
-    if (button) {
-        activeTouches.set(e.pointerId, button.id);
-        applyTouchState();
-    } else {
-        input.confirmPressed = true; // Tippen bestätigt Menüs
+    input.confirmPressed = true; // Tippen bestätigt auch Menüs/Tod-Bildschirm
+
+    const point = touchPointToView(e);
+    if (point.x < viewWidth / 2) {
+        if (!joystick) {
+            joystick = { pointerId: e.pointerId, anchorX: point.x, anchorY: point.y, curX: point.x, curY: point.y };
+            activeTouches.set(e.pointerId, 'move');
+            updateJoystickInput();
+        }
+    } else if (!rightGesture) {
+        rightGesture = { pointerId: e.pointerId, startY: point.y, triggered: null, holdingJump: false };
+        activeTouches.set(e.pointerId, 'gesture');
     }
-    canvas.setPointerCapture?.(e.pointerId);
+    try { canvas.setPointerCapture?.(e.pointerId); } catch (err) { /* ignoriert */ }
     e.preventDefault();
 });
 
+canvas.addEventListener('pointermove', (e) => {
+    const point = touchPointToView(e);
+    if (joystick && e.pointerId === joystick.pointerId) {
+        joystick.curX = point.x;
+        joystick.curY = point.y;
+        updateJoystickInput();
+    } else if (rightGesture && e.pointerId === rightGesture.pointerId && !rightGesture.triggered) {
+        const dy = point.y - rightGesture.startY;
+        if (dy <= -SWIPE_THRESHOLD) {
+            rightGesture.triggered = 'up';
+            if (duckHeld) duckHeld = false; // aufstehen ...
+            triggerTouchJump();             // ... und gleich mitspringen
+            rightGesture.holdingJump = true;
+            input.down = duckHeld;
+        } else if (dy >= SWIPE_THRESHOLD) {
+            rightGesture.triggered = 'down';
+            duckHeld = true;
+            input.down = duckHeld;
+        }
+    }
+    e.preventDefault();
+}, { passive: false });
+
 function endPointer(e) {
-    if (activeTouches.delete(e.pointerId)) applyTouchState();
+    if (joystick && e.pointerId === joystick.pointerId) {
+        joystick = null;
+        activeTouches.delete(e.pointerId);
+        updateJoystickInput();
+    }
+    if (rightGesture && e.pointerId === rightGesture.pointerId) {
+        if (rightGesture.holdingJump) input.jumpHeld = false;
+        rightGesture = null;
+        activeTouches.delete(e.pointerId);
+    }
 }
 canvas.addEventListener('pointerup', endPointer);
 canvas.addEventListener('pointercancel', endPointer);
@@ -8703,24 +8674,34 @@ function drawHud() {
         ctx.fillText(text, viewWidth - w - 6, 33);
     }
 
-    if (touchActive) drawTouchButtons();
+    if (touchActive) drawTouchControls();
 }
 
-function drawTouchButtons() {
-    layoutTouchButtons();
-    const pressed = new Set(activeTouches.values());
-    for (const b of touchButtons) {
-        ctx.fillStyle = pressed.has(b.id) ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.28)';
+function drawTouchControls() {
+    // Linke Hälfte: der Joystick, nur solange der Finger wirklich draufliegt
+    if (joystick) {
+        const dx = clamp(joystick.curX - joystick.anchorX, -JOY_RADIUS, JOY_RADIUS);
+        ctx.fillStyle = 'rgba(255,255,255,0.22)';
         ctx.beginPath();
-        ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+        ctx.arc(joystick.anchorX, joystick.anchorY, JOY_RADIUS + 18, 0, Math.PI * 2);
         ctx.fill();
-        ctx.fillStyle = 'rgba(60,50,60,0.75)';
-        ctx.font = 'bold 24px Georgia, serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const label = b.id === 'left' ? '◀' : b.id === 'right' ? '▶' : b.id === 'down' ? '▼' : '⤒';
-        ctx.fillText(label, b.x, b.y);
+        ctx.fillStyle = (input.left || input.right) ? 'rgba(255,255,255,0.6)' : 'rgba(255,255,255,0.4)';
+        ctx.beginPath();
+        ctx.arc(joystick.anchorX + dx, joystick.anchorY, 26, 0, Math.PI * 2);
+        ctx.fill();
     }
+
+    // Rechte Hälfte: dezenter Hinweis auf die Wischgesten, plus Duck-Anzeige
+    const hintX = viewWidth - 62;
+    const hintY = viewHeight - 110;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 22px Georgia, serif';
+    ctx.fillStyle = (rightGesture && rightGesture.triggered === 'up' && rightGesture.holdingJump)
+        ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)';
+    ctx.fillText('▲', hintX, hintY - 30);
+    ctx.fillStyle = duckHeld ? 'rgba(255,255,255,0.85)' : 'rgba(255,255,255,0.4)';
+    ctx.fillText('▼', hintX, hintY + 30);
     ctx.textBaseline = 'alphabetic';
     ctx.textAlign = 'left';
 }

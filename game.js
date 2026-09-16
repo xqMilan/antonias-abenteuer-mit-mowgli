@@ -382,8 +382,6 @@ function overlaps(a, b) {
     return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 }
 
-
-
 const input = {
     left: false,
     right: false,
@@ -436,19 +434,17 @@ window.addEventListener('blur', () => {
     activeTouches.clear();
 });
 
-// --- Touch-Steuerung für kleine Bildschirme -------------------------
-// Linke Bildschirmhälfte: schwebender Joystick - Finger draufhalten und
-// nach links/rechts ziehen. Unten rechts: Knöpfe zum Springen und Ducken.
+
 
 let touchActive = false;
-const activeTouches = new Map(); // pointerId -> 'move' | 'jump' | 'duck'
+const activeTouches = new Map(); 
 
-const JOY_RADIUS = 52;          // wie weit der Steuerknüppel maximal auswandert
-const JOY_DEADZONE = 14;        // so weit muss man ihn erst auslenken
-const JUMP_BUTTON_RADIUS = 48;  // Größe des Spring-Knopfs
-const DUCK_BUTTON_RADIUS = 40;  // Größe des Duck-Knopfs
+const JOY_RADIUS = 52;
+const JOY_DEADZONE = 14;
+const JUMP_BUTTON_RADIUS = 48;
+const DUCK_BUTTON_RADIUS = 40;
 
-let joystick = null;   // { pointerId, anchorX, anchorY, curX, curY }
+let joystick = null;
 const touchButtons = [];
 
 function layoutTouchButtons() {
@@ -500,10 +496,10 @@ function updateJoystickInput() {
 canvas.addEventListener('pointerdown', (e) => {
     if (e.pointerType === 'mouse' && state.mode === 'playing') return;
     touchActive = touchActive || e.pointerType !== 'mouse';
-    input.confirmPressed = true; // Tippen bestätigt auch Menüs/Tod-Bildschirm
+    input.confirmPressed = true; 
 
     const point = touchPointToView(e);
-    layoutTouchButtons(); // Positionen müssen schon beim allerersten Tipp stimmen
+    layoutTouchButtons(); 
     const button = buttonAt(point);
     if (button) {
         activeTouches.set(e.pointerId, button.id);
@@ -543,30 +539,28 @@ canvas.addEventListener('pointercancel', endPointer);
 canvas.addEventListener('pointerleave', endPointer);
 
 
-/* ---------- 6. Weltdaten & Spielzustand ---------- */
-
 const level = {
-    terrain: [],      // feste Bodenblöcke  {x,y,w,h}
-    platforms: [],    // Plattformen (statisch oder beweglich)
-    obstacles: [],    // Hindernisse: 'thorn' | 'crate' | 'wall' | 'branch'
+    terrain: [],    
+    platforms: [],    
+    obstacles: [],   
     cows: [],
-    cats: [],         // Mowgli (kann mehrfach vorkommen)
-    critters: [],     // laufende Gegner
+    cats: [],         
+    critters: [],    
     hearts: [],
     checkpoints: [],
-    decor: [],        // Büsche/Blumen/Steine auf dem Boden
-    pits: [],         // Lücken zwischen Bodenblöcken (nur zum Zeichnen der Tiefe)
+    decor: [],        
+    pits: [],         
     clouds: [],
-    biomes: [],       // {index, startX, endX} - feste Reihenfolge der Kapitel
-    landmarks: [],    // große Hintergrundbauten je Biom (Türme, Brücke, Dünen ...)
+    biomes: [],       
+    landmarks: [],    
     hazards: [],
-    zones: [],        // Wind- und Dunkelzonen      // Gefahren im Takt und fallende Gegenstände
+    zones: [],       
     goalX: GOAL_DISTANCE,
     spawn: { x: 90, y: GROUND_BASE_Y - PLAYER_HEIGHT },
 };
 
 const state = {
-    mode: 'playing',  // playing | paused | dead | finished
+    mode: 'playing',
     time: 0,
     hearts: 0,
     deaths: 0,
@@ -575,7 +569,7 @@ const state = {
     deathReason: '',
     finishFrames: 0,
     shake: 0,
-    currentBiome: 0,      // welches Kapitel gerade gespielt wird
+    currentBiome: 0,
 };
 
 const player = {
@@ -583,8 +577,8 @@ const player = {
     vx: 0, vy: 0,
     onGround: false,
     groundRef: null,
-    mode: 'air',      // 'ground' | 'air' | 'riding'  (klar getrennte Zustände)
-    mount: null,      // Mowgli, auf dem gerade geritten wird
+    mode: 'air', 
+    mount: null, 
     ducking: false,
     facing: 1,
     coyote: 0,
@@ -598,13 +592,8 @@ const camera = { x: 0, y: 0 };
 const particles = [];
 
 
-/* ---------- 6b. Biome: die Kapitel unserer Geschichte ---------- */
-// Die Welt ist KEINE Zufallsfolge mehr, sondern eine feste Reihe von Biomen.
-// Jedes Biom hat eine eigene Palette, eigene Bodenart, eigene Plattform- und
-// Hindernisformen und einen fest platzierten Höhepunkt mit Nachricht.
-// Neue Erinnerungen lassen sich später einfach als weiterer Eintrag ergänzen.
 
-const TRANSITION_BLEND = 320; // über diese Strecke werden Farben überblendet
+const TRANSITION_BLEND = 320; 
 
 const BIOMES = [
     {
@@ -617,7 +606,7 @@ const BIOMES = [
         text: PERSONAL.chapters.prag,
         build: buildBiomePrag,
         palette: {
-            sky: ['#3b3f72', '#8a6a8e', '#f0a878'],   // Abendlicht über der Altstadt
+            sky: ['#3b3f72', '#8a6a8e', '#f0a878'],
             sun: { color: '#ffdca8', glow: 'rgba(255,214,150,0.85)', x: 0.76, y: 0.2, r: 30 },
             cloud: 'rgba(255,214,198,0.55)',
             far: '#4c4a72',
@@ -650,7 +639,7 @@ const BIOMES = [
         text: PERSONAL.chapters.italien,
         build: buildBiomeItalien,
         palette: {
-            sky: ['#3a2029', '#6d3630', '#c9743f'],   // warmes Kerzenlicht
+            sky: ['#3a2029', '#6d3630', '#c9743f'],
             sun: { color: '#ffd9a0', glow: 'rgba(255,190,120,0.7)', x: 0.7, y: 0.22, r: 22 },
             cloud: 'rgba(255,200,160,0.25)',
             far: '#54282c',
@@ -667,7 +656,7 @@ const BIOMES = [
             crate: 'chair',
             duck: 'shelf',
             bouncer: 'cushion',
-            critter: { body: '#c4453c', light: '#e2685c' },  // rollende Tomate
+            critter: { body: '#c4453c', light: '#e2685c' },
             decor: ['candle', 'wineBottle', 'plant', 'plant'],
             accent: '#5fa055',
         },
@@ -716,7 +705,7 @@ const BIOMES = [
         text: PERSONAL.chapters.marokko,
         build: buildBiomeMarokko,
         palette: {
-            sky: ['#4aa6d8', '#9fd0e0', '#f6d9a0'],   // heller Wüstenhimmel
+            sky: ['#4aa6d8', '#9fd0e0', '#f6d9a0'], 
             sun: { color: '#fff3c8', glow: 'rgba(255,240,190,0.9)', x: 0.8, y: 0.15, r: 38 },
             cloud: 'rgba(255,255,255,0.6)',
             far: '#c9a578',
